@@ -1,8 +1,27 @@
 
+`include "instruction_memory.v"
+`include "alu.v"
+`include "Mux2x1.v"
+`include "Mux4x1.v"
+`include "hazard_unit.v"
+`include "pc.v"
+`include "IF_DEC_Reg.v"
+`include "adder.v"
+`include "control_unit.v"
+`include "register_file.v"
+`include "imm_extend.v"
+`include "DEC_EX_Reg.v"
+`include "EX_MEM_Reg.v"
+`include "data_memory.v"
+`include "MEM_WB_Reg.v"
 
-module RV32I(clk,rst);
 
-input clk,rst;
+module RV32I(fun_clk,scan_clk,fun_rst,scan_rst,test_mode,pc_out,alu_out);
+
+input fun_clk,scan_clk,fun_rst,scan_rst,test_mode;
+output[31:0] pc_out,alu_out;
+
+wire clk,rst;
 
 wire[31:0] pc_current,pc_nxt,ImmExtD,ImmExtE,ALUResultE,ALUResultM,ALUResultW,PCTargetE,WriteDataM,ReadDataM,ReadDataW;
 wire[31:0] PCPlus4F,InstF,InstD,PCD,PCPlus4D,RD1D,RD2D,RD1E,RD2E,PCE,PCPlus4E,PCPlus4M,PCPlus4W,SrcBE1,SrcBE2,SrcAE,ResultW;
@@ -22,6 +41,23 @@ wire[1:0] ResultSrcD,ImmSrcD,MemStrobeD,ResultSrcE,ResultSrcM,ResultSrcW,ImmSrcE
 wire[3:0] ALUControlD,ALUControlE;
 
 
+////////////DFT MUXES///////////////////
+
+ 
+ // mux_clock 
+ Mux2x1 U0_Mux2x1(
+	.in_0(fun_clk)   ,
+	.in_1(scan_clk)  ,
+	.sel(test_mode)  ,
+	.out(clk)
+ ); 
+ // mux_reset
+ Mux2x1 U1_Mux2x1(
+	.in_0(fun_rst)   ,
+	.in_1(scan_rst)  ,
+	.sel(test_mode)  ,
+	.out(rst)
+ );  
 
 /////////////////Hazard Unit/////////////////
 
@@ -38,7 +74,7 @@ instruction_memory Inst_Mem(pc_nxt,InstF);
 
 IF_DEC_Reg FD_Reg(InstF,InstD,pc_nxt,PCD,PCPlus4F,PCPlus4D,clk,rst,StallD,FlushD);
 
-addr PCPlus4(pc_nxt,4,PCPlus4F);
+addr PCPlus4(pc_nxt,32'd4,PCPlus4F);
 
 /////////////////END OF FETCH STAGE/////////////////
 
@@ -115,8 +151,22 @@ MEM_WB_Reg MW_Reg(
 	ALUResultW,ReadDataW,PCPlus4W
 	);
 
-assign ResultW = (ResultSrcW==0)?ALUResultW:(ResultSrcW==1)?ReadDataW:(ResultSrcW==2)?PCPlus4W:0;
+Mux4x1 U0_Mux4x1(
+	.in_0(ALUResultW),
+	.in_1(ReadDataW),
+	.in_2(PCPlus4W),
+	.sel(ResultSrcW),
+	.out(ResultW)
+);
+
+//assign ResultW = (ResultSrcW==0)?ALUResultW:(ResultSrcW==1)?ReadDataW:(ResultSrcW==2)?PCPlus4W:0;
 
 /////////////////END OF WRITE BACK STAGE/////////////////
 
+//////////// OUTS //////////////
+
+assign pc_out = pc_nxt;
+assign alu_out = ALUResultW;
+
 endmodule
+
